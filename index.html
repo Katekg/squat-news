@@ -48,7 +48,7 @@ html.sa .top{padding-bottom:max(8px,env(safe-area-inset-bottom))}
 .done{display:none;flex:1;color:var(--ok);font-weight:700;font-size:14px}
 .bar.achieved:not(.resting) .done{display:block;animation:pop .5s}
 @keyframes pop{from{transform:scale(.9);opacity:0}to{transform:none;opacity:1}}
-.chips{display:flex;gap:6px;padding:calc(env(safe-area-inset-top) + 8px) 12px 8px;overflow-x:auto;scrollbar-width:none;position:sticky;top:0;z-index:10;background:var(--bg)}
+.chips{display:flex;gap:6px;padding:8px 12px 8px;overflow-x:auto;scrollbar-width:none;position:sticky;top:0;z-index:10;background:var(--bg)}
 .chip{border:1px solid #c4c7c5;border-radius:10px;padding:5px 12px;font-size:13px;white-space:nowrap;background:var(--card)}
 .chip.on{background:var(--blue2);border-color:var(--blue2);color:#041e49;font-weight:600}
 .note{margin:6px 12px;padding:10px 12px;background:#fff8e1;border-radius:14px;font-size:12px;color:#5d4200}
@@ -75,7 +75,10 @@ html.sa .top{padding-bottom:max(8px,env(safe-area-inset-bottom))}
 .unread .dot{display:block}
 .tag{font-size:10px;color:var(--blue);background:var(--blue2);border-radius:6px;padding:1px 5px;margin-right:4px;font-weight:600}
 .empty{padding:40px 20px;text-align:center;color:var(--sub);font-size:14px}
-.det{display:none;padding:env(safe-area-inset-top) 0 230px;touch-action:pan-y}
+.det{display:none;padding:0 0 230px;touch-action:pan-y}
+/* もや対策（作品鑑賞帳と同じ）：画面全体はスクロールさせず、ステータスバーの下の枠（#scr）の中だけを動かす。上には同じ色の不透明な帯を固定する */
+#topband{position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:30}
+#scr{position:fixed;top:env(safe-area-inset-top,0px);left:0;right:0;bottom:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain}
 .det .pg{will-change:transform}
 .navpos{margin-left:auto;font-size:12px;color:var(--sub);font-weight:500}
 .det.on{display:block}
@@ -146,6 +149,8 @@ mark{background:#fff3a0;border-radius:3px;padding:0 1px}
   </div>
 </div>
 
+<div id="topband"></div>
+<div id="scr">
 <div id="listView">
   <div id="notes"></div>
   <div class="chips" id="chips"></div>
@@ -153,6 +158,7 @@ mark{background:#fff3a0;border-radius:3px;padding:0 1px}
   <div style="height:200px"></div>
 </div>
 <div class="det" id="detView"></div>
+</div>
 
 <button class="mkbtn" id="mkBtn">🖍 マーカーして関連記事を探す</button>
 <div class="toast" id="toast"><span id="toastMsg"></span><button id="toastBtn"></button></div>
@@ -203,7 +209,7 @@ function hasMarker(id){return D.markers.some(function(m){return m.id===id})}
 var revisit={};
 var CHIPS=[['all','すべて'],['rec','おすすめ'],['good','👍 グッド'],['star','☆ お気に入り'],['rel','関連・マーカー'],['bad','👎 バッド']];
 function renderChips(){$('chips').innerHTML=CHIPS.map(function(c){return '<button class="chip'+(filter===c[0]?' on':'')+'" data-f="'+c[0]+'">'+c[1]+'</button>'}).join('')}
-$('chips').onclick=function(e){var b=e.target.closest('.chip');if(!b)return;filter=b.dataset.f;if((filter==='star'||filter==='rel'||filter==='good')&&!saved)loadSaved();renderChips();renderList();window.scrollTo(0,0)};
+$('chips').onclick=function(e){var b=e.target.closest('.chip');if(!b)return;filter=b.dataset.f;if((filter==='star'||filter==='rel'||filter==='good')&&!saved)loadSaved();renderChips();renderList();$('scr').scrollTop=0};
 function loadSaved(){saved=[];run('getSaved',[],function(r){saved=r||[];renderList()})}
 function listItems(){
   var a=allArts(),byAdded=function(x,y){return (y.added||0)-(x.added||0)};
@@ -256,8 +262,8 @@ $('list').addEventListener('click',function(e){
   $('list').addEventListener('touchmove',function(e){
     if(!row)return;var x=e.touches[0].clientX-sx,y=e.touches[0].clientY-sy;
     if(!mode){if(Math.abs(x)>10&&Math.abs(x)>Math.abs(y)*1.3)mode='h';else if(Math.abs(y)>10)mode='v'}
-    if(mode!=='h')return;e.preventDefault();dx=Math.max(0,x);fg.style.transition='none';fg.style.transform='translateX('+dx+'px)';
-  },{passive:false});
+    if(mode!=='h')return;dx=Math.max(0,x);fg.style.transition='none';fg.style.transform='translateX('+dx+'px)';
+  },{passive:true});
   $('list').addEventListener('touchend',function(){
     if(!row||mode!=='h'){row=null;return}
     var r=row,f=fg,id=r.dataset.id;r.dataset.swiped='1';setTimeout(function(){delete r.dataset.swiped},300);
@@ -289,14 +295,14 @@ var ICON_DOWN='<svg viewBox="0 0 24 24" style="transform:rotate(180deg)"><path d
 var ICON_UP2='<svg viewBox="0 0 30 24" style="width:34px"><path d="M7 10v11H3V10h4zm0 0 4-8c1.7 0 2.6 1.2 2.3 2.8L12.6 9H19a2 2 0 0 1 2 2.3l-1.3 7.6A2.5 2.5 0 0 1 17.2 21H7"/><path d="M17 6l2.5-5c1.7 0 2.6 1.2 2.3 2.8L21.2 7H26a2 2 0 0 1 2 2.3l-1.3 7.6A2.5 2.5 0 0 1 24.2 19H22"/></svg>';
 var navIds=[],backStack=[];
 function openDetail(id,ids){
-  var a=byId(id);if(!a)return;var first=!curId;if(first)listScroll=window.scrollY;curId=id;
+  var a=byId(id);if(!a)return;var first=!curId;if(first)listScroll=$('scr').scrollTop;curId=id;
   if(ids)navIds=ids;if(navIds.indexOf(id)<0)navIds=[id];
   if(!a.read){a.read=true;run('setRead',[id]);cacheSave()}
-  $('listView').style.display='none';$('detView').classList.add('on');renderDetail();window.scrollTo(0,0);
+  $('listView').style.display='none';$('detView').classList.add('on');renderDetail();$('scr').scrollTop=0;
   if(first)history.pushState({d:1},'');
 }
 function goBackToOrigin(){var b=backStack.pop();navIds=b.nav;openDetail(b.id)}
-function closeDetail(){curId=null;backStack=[];$('detView').classList.remove('on');$('listView').style.display='';$('mkBtn').classList.remove('on');renderList();window.scrollTo(0,listScroll)}
+function closeDetail(){curId=null;backStack=[];$('detView').classList.remove('on');$('listView').style.display='';$('mkBtn').classList.remove('on');renderList();$('scr').scrollTop=listScroll}
 window.addEventListener('popstate',function(){if(curId)closeDetail()});
 function marksFor(id){return D.markers.filter(function(m){return m.id===id}).map(function(m){return m.text})}
 function highlight(text,marks){
@@ -344,9 +350,9 @@ function renderDetail(){
     if(busy||mode==='v')return;var x=e.touches[0].clientX-sx,y=e.touches[0].clientY-sy;
     if(!mode){if(Math.abs(x)>12&&Math.abs(x)>Math.abs(y)*1.4)mode='h';else if(Math.abs(y)>10){mode='v';return}else return}
     var s=window.getSelection();if(s&&s.toString()){mode='v';return}
-    e.preventDefault();var i=navIds.indexOf(curId),has=x<0?i<navIds.length-1:(i>0||backStack.length>0);
+    var i=navIds.indexOf(curId),has=x<0?i<navIds.length-1:(i>0||backStack.length>0);
     dx=has?x:x*0.25;pg().style.transition='none';pg().style.transform='translateX('+dx+'px)';pg().style.opacity=String(1-Math.min(.4,Math.abs(dx)/window.innerWidth*.6));
-  },{passive:false});
+  },{passive:true});
   el.addEventListener('touchend',function(){
     if(mode!=='h'||busy){mode='';return}mode='';
     var w=window.innerWidth,i=navIds.indexOf(curId),dir=dx<0?1:-1,ni=i+dir,p=pg();
