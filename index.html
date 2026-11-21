@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>スクワットニュース</title>
 <link rel="manifest" href="manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -77,8 +77,10 @@ html.sa .top{padding-bottom:max(8px,env(safe-area-inset-bottom))}
 .empty{padding:40px 20px;text-align:center;color:var(--sub);font-size:14px}
 .det{display:none;padding:0 0 230px;touch-action:pan-y}
 /* もや対策（作品鑑賞帳と同じ）：画面全体はスクロールさせず、ステータスバーの下の枠（#scr）の中だけを動かす。上には同じ色の不透明な帯を固定する */
-#topband{position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:30}
-#scr{position:fixed;top:env(safe-area-inset-top,0px);left:0;right:0;bottom:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain}
+:root{--sat:env(safe-area-inset-top,0px)}
+html,body{height:100%;overflow:hidden}
+#topband{position:fixed;top:0;left:0;right:0;height:calc(var(--sat) + 6px);background:var(--bg);z-index:30}
+#scr{position:fixed;top:calc(var(--sat) + 6px);left:0;right:0;bottom:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain}
 .det .pg{will-change:transform}
 .navpos{margin-left:auto;font-size:12px;color:var(--sub);font-weight:500}
 .det.on{display:block}
@@ -123,6 +125,14 @@ mark{background:#fff3a0;border-radius:3px;padding:0 1px}
 .spin{display:inline-block;width:14px;height:14px;border:2px solid #fff6;border-top-color:#fff;border-radius:50%;animation:sp 1s linear infinite;vertical-align:-2px}
 @keyframes sp{to{transform:rotate(360deg)}}
 .loading{padding:14px;text-align:center;color:var(--sub);font-size:13px}
+
+/* 横向き対策：iPhoneを横にしても、縦向きの画面をそのまま回して表示する（横向き用の崩れた画面にしない） */
+html.land body{position:fixed;left:0;width:100vh;height:100vw;transform-origin:0 0;overflow:hidden}
+html.land.l90 body{top:100vh;transform:rotate(-90deg)}
+html.land.l270 body{top:0;left:100vw;transform:rotate(90deg)}
+html.land.l90{--sat:env(safe-area-inset-left,0px)}
+html.land.l270{--sat:env(safe-area-inset-right,0px)}
+html.land .sheet{max-height:88vw}
 </style>
 </head>
 <body>
@@ -165,6 +175,16 @@ mark{background:#fff3a0;border-radius:3px;padding:0 1px}
 <div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
 
 <script>
+/* 横向き：端末の向きに合わせて画面を逆に回す。タッチの座標も回した画面の向きに直す */
+function landAngle(){var a=(screen.orientation&&typeof screen.orientation.angle==='number')?screen.orientation.angle:(typeof window.orientation==='number'?window.orientation:0);a=((a%360)+360)%360;return a}
+function applyLand(){var h=document.documentElement,a=landAngle(),land=(a===90||a===270)&&Math.min(screen.width,screen.height)<600;
+  h.classList.toggle('land',land);h.classList.toggle('l90',land&&a===90);h.classList.toggle('l270',land&&a===270)}
+function TP(e){var t=e.touches[0],h=document.documentElement;
+  if(h.classList.contains('l90'))return{x:window.innerHeight-t.clientY,y:t.clientX};
+  if(h.classList.contains('l270'))return{x:t.clientY,y:window.innerWidth-t.clientX};
+  return{x:t.clientX,y:t.clientY}}
+applyLand();window.addEventListener('orientationchange',function(){setTimeout(applyLand,50)});window.addEventListener('resize',applyLand);
+
 (function(){
 var $=function(id){return document.getElementById(id)};
 var LEVELS=[[10,2,90,[2,0,2]],[15,2,90,[2,0,2]],[10,3,60,[2,0,2]],[15,3,60,[2,1,2]],[20,3,60,[2,1,2]],[20,3,45,[2,1,2]],[25,3,45,[2,1,2]],[25,3,30,[3,1,2]],[30,3,45,[3,1,2]],[30,3,30,[3,1,2]]];
@@ -258,9 +278,9 @@ $('list').addEventListener('click',function(e){
 /* 右スワイプで👎 */
 (function(){
   var sx=0,sy=0,row=null,fg=null,dx=0,mode='';
-  $('list').addEventListener('touchstart',function(e){row=e.target.closest('.row');if(!row)return;fg=row.querySelector('.fg');sx=e.touches[0].clientX;sy=e.touches[0].clientY;dx=0;mode='';delete row.dataset.swiped},{passive:true});
+  $('list').addEventListener('touchstart',function(e){row=e.target.closest('.row');if(!row)return;fg=row.querySelector('.fg');sx=TP(e).x;sy=TP(e).y;dx=0;mode='';delete row.dataset.swiped},{passive:true});
   $('list').addEventListener('touchmove',function(e){
-    if(!row)return;var x=e.touches[0].clientX-sx,y=e.touches[0].clientY-sy;
+    if(!row)return;var x=TP(e).x-sx,y=TP(e).y-sy;
     if(!mode){if(Math.abs(x)>10&&Math.abs(x)>Math.abs(y)*1.3)mode='h';else if(Math.abs(y)>10)mode='v'}
     if(mode!=='h')return;dx=Math.max(0,x);fg.style.transition='none';fg.style.transform='translateX('+dx+'px)';
   },{passive:true});
@@ -345,9 +365,9 @@ function renderDetail(){
 (function(){
   var sx=0,sy=0,dx=0,mode='',busy=false,el=$('detView');
   function pg(){return $('pg')}
-  el.addEventListener('touchstart',function(e){if(busy||e.touches.length>1)return;var s=window.getSelection();if(s&&s.toString())return;sx=e.touches[0].clientX;sy=e.touches[0].clientY;dx=0;mode=''},{passive:true});
+  el.addEventListener('touchstart',function(e){if(busy||e.touches.length>1)return;var s=window.getSelection();if(s&&s.toString())return;sx=TP(e).x;sy=TP(e).y;dx=0;mode=''},{passive:true});
   el.addEventListener('touchmove',function(e){
-    if(busy||mode==='v')return;var x=e.touches[0].clientX-sx,y=e.touches[0].clientY-sy;
+    if(busy||mode==='v')return;var x=TP(e).x-sx,y=TP(e).y-sy;
     if(!mode){if(Math.abs(x)>12&&Math.abs(x)>Math.abs(y)*1.4)mode='h';else if(Math.abs(y)>10){mode='v';return}else return}
     var s=window.getSelection();if(s&&s.toString()){mode='v';return}
     var i=navIds.indexOf(curId),has=x<0?i<navIds.length-1:(i>0||backStack.length>0);
